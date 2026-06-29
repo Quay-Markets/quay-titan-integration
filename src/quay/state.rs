@@ -58,8 +58,15 @@ impl FromAccount for QuayVenue {
             // until the first `update_state` decodes real flag bytes.
             cfg_swap_halted: 1,
             cfg_protocol_halted: 1,
-            // Strategy flags can be read off the bytes we already have,
-            // but keep symmetry with the MM / cfg defaults: warm up halted.
+            // Strategy flags COULD be read off the bytes we already have, but
+            // we warm up halted (1) like the MM / cfg defaults anyway. Seeding
+            // their real values here would buy nothing: `initialized()` also
+            // gates on `has_all_state()` (false until the first update), so the
+            // venue can't route during warmup regardless, and `refresh_state`
+            // re-decodes ALL these flags unconditionally on every call — there
+            // is no change-detection, so an early-correct value is overwritten
+            // on the first refresh. Keeping the symmetry keeps the gate
+            // fail-closed and the block uniform.
             strategy_frozen: 1,
             strategy_frozen_admin: 1,
             mm_frozen: 1,
