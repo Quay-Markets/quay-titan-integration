@@ -83,6 +83,8 @@ fn all_active_venue() -> QuayVenue {
         mm_frozen: 0,
         mm_frozen_admin: 0,
         mm_halted_admin: 0,
+        price_probe_base: 0,
+        price_probe_quote: 0,
         current_slot: 0,
         current_unix_sec: 0,
     }
