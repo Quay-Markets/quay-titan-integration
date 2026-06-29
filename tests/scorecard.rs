@@ -179,7 +179,13 @@ fn integration_scorecard() {
         assert!(!read(f).is_empty(), "integration layer missing or empty: {f}");
     }
 
-    let quay = read("src/quay/mod.rs");
+    // The quay adapter is split across submodules (mod/state/quote/swap/
+    // creation), so scan the whole module dir rather than a single file —
+    // the wiring checks below look for symbols anywhere in `src/quay`.
+    let quay = files_under("src/quay")
+        .iter()
+        .filter_map(|p| fs::read_to_string(p).ok())
+        .collect::<String>();
     let quay_cpi = read(&format!("{PROGRAM_SRC}/instructions/venues/quay.rs"));
     let swap_route = read("src/swap_route/mod.rs");
     let state = read(&format!("{PROGRAM_SRC}/state.rs"));
