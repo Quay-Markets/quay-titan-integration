@@ -54,17 +54,22 @@ impl FromAccount for QuayVenue {
             vault_quote_key,
             tokens: Vec::new(),
             routing_flags: strategy.routing_flags,
-            // Default to 1 (active-halt) so `initialized()` returns false
-            // until the first `update_state` decodes real flag bytes.
+            // MM and cfg halt bytes live in accounts we haven't fetched yet
+            // (`mm_data` / `global_config_data` are still empty here), so warm
+            // up halted (1). `initialized()` also gates on `has_all_state()`,
+            // so the venue stays un-routed until the first `update_state`
+            // regardless.
             cfg_swap_halted: 1,
             cfg_protocol_halted: 1,
-            // Strategy flags can be read off the bytes we already have,
-            // but keep symmetry with the MM / cfg defaults: warm up halted.
-            strategy_frozen: 1,
-            strategy_frozen_admin: 1,
             mm_frozen: 1,
             mm_frozen_admin: 1,
             mm_halted_admin: 1,
+            // Strategy flags ARE known — we just decoded the Strategy account
+            // above — so seed them with their real values instead of a
+            // pessimistic 1. `update_state` re-decodes them each slot.
+            strategy_frozen: strategy.frozen,
+            strategy_frozen_admin: strategy.frozen_admin,
+            // No `Clock` sysvar at construction; `update_state` fills these.
             current_slot: 0,
             current_unix_sec: 0,
         })
