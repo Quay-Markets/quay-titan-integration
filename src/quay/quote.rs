@@ -5,6 +5,8 @@
 //! `quay_sdk::simulate::simulate_swap_in` — bit-identical to the on-chain
 //! `swap` — and reports the marginal price `f'(amount)` by finite difference.
 
+use std::cmp::max;
+
 use quay_sdk::consts::{MAX_USERSPACE_LEN, ROUTE_TITAN, SIDE_BUY_BASE, SIDE_SELL_BASE};
 use quay_sdk::simulate::{simulate_swap_in, SwapSimulationInputs};
 
@@ -99,26 +101,23 @@ impl QuayVenue {
             .map(|s| s.out_to_taker)
         };
 
-        // Spot-price probe = one whole unit of the IN token. Small vs typical
-        // inventory but large enough that integer output doesn't round to 0.
-        let in_decimals = if side == SIDE_SELL_BASE { base_decimals } else { quote_decimals };
-        let probe = 10u64.checked_pow(u32::from(in_decimals)).unwrap_or(1_000_000);
+        // MM's price-probe input for this side — used as both the spot probe
+        // size and the marginal-price step. Sized by the MM (from token
+        // prices/decimals) so one step moves enough output atoms that ±1-atom
+        // rounding stays under Titan's 0.1 bps tolerance.
+        let price_probe_in = if side == SIDE_SELL_BASE {
+            self.price_probe_base
+        } else {
+            self.price_probe_quote
+        };
 
-        // Zero-amount: Titan requests zero-input quotes for the spot rate and we
-        // must not panic/error. Report the spot price `f'(0) ≈ f(p)/p` for the
-        // smallest whole-unit probe that fills: start at one input unit and, if
-        // that overdraws a small maker's inventory, shrink until a swap
-        // succeeds. `f` returns `None` (never `Some(0)`) on a zero/insufficient
-        // output, so any `Some` is a positive fill. Only a curve that refuses
-        // every size down to one atom yields `0.0`.
+        // Spot rate (Titan asks with amount == 0): probe once at the probe size.
+        // `0.0` if it can't fill — we never shrink below the probe size.
+        // `simulate_out` never returns `Some(0)`, so the divisor is positive.
         if request.amount == 0 {
-            let mut p = probe;
-            let price = loop {
-                match simulate_out(p) {
-                    Some(out) => break out as f64 / p as f64,
-                    None if p > 1 => p = (p / 16).max(1),
-                    None => break 0.0,
-                }
+            let price = match simulate_out(price_probe_in) {
+                Some(out) => out as f64 / price_probe_in as f64,
+                None => 0.0,
             };
             return Ok(QuoteResult {
                 input_mint: request.input_mint,
@@ -145,32 +144,14 @@ impl QuayVenue {
             });
         };
 
-        // Marginal price `f'(a) = d(output)/d(input)` by finite difference —
-        // forward, falling back to a backward step near the inventory bound
-        // (where `a + h` is refused). Titan routes on this and requires it to be
-        // the genuine derivative of the output curve (positive, non-increasing,
-        // consistent with `expected_output` via the mean-value theorem).
-        //
-        // Step sizing: outputs are integer atoms, so a finite difference over
-        // `h` input atoms carries ±1 atom of quantization noise — a relative
-        // error of `1/Δout` where `Δout ≈ h·f'`. Titan's mean-value-theorem
-        // check compares adjacent quotes' prices with no absolute slack, so on a
-        // near-linear curve (constant marginal) that noise must stay well under
-        // its `1e-5` tolerance. We therefore size `h` to a fixed *output* target
-        // (`PRICE_PROBE_OUT` atoms) rather than a fraction of `a`: `h ≈
-        // PRICE_PROBE_OUT / f'`, estimating `f' ≈ out/a`. `2^20` atoms bounds the
-        // quantization error near `1e-6`. The probe costs one extra `simulate`
-        // call, so the quote path runs two sims.
-        //
-        // The guards are strict (`>`): a *zero* finite difference means the
-        // output didn't move over `h` atoms — a flat region or a rate so small
-        // the step rounds to 0 output. Either way the local slope is unmeasurable
-        // here, so we fall through to the average rate rather than report
-        // `price == 0` (which would break Titan's positivity invariant).
-        const PRICE_PROBE_OUT: u128 = 1 << 20;
-        let h = ((PRICE_PROBE_OUT * u128::from(a)) / u128::from(out.max(1)))
-            .min(u128::from(u64::MAX)) as u64;
-        let h = h.max(1);
+        // Marginal price `f'(a)` ≈ the chord over one price-probe step: probe
+        // `a + price_probe_in` (forward, or backward near the inventory bound).
+        // The MM sizes the probe so this step moves enough output atoms to keep
+        // ±1-atom rounding under Titan's 0.1 bps MVT tolerance, and it's small vs
+        // pool depth so the chord tracks the true local rate. Strict `>` guards:
+        // a zero diff means the slope is unmeasurable here, so fall back to the
+        // average rate, never `price == 0`.
+        let h = max(price_probe_in, 1);
         let price = match simulate_out(a.saturating_add(h)) {
             Some(up) if up > out => (up - out) as f64 / h as f64,
             _ => match simulate_out(a.saturating_sub(h)) {

@@ -38,6 +38,9 @@ impl FromAccount for QuayVenue {
         let (vault_base_key, _) = pda::vault_pda(&program_id, &mm_key, &base_mint);
         let (vault_quote_key, _) = pda::vault_pda(&program_id, &mm_key, &quote_mint);
 
+        let price_probe_base = strategy.price_probe_base;
+        let price_probe_quote = strategy.price_probe_quote;
+
         Ok(Self {
             program_id,
             strategy_key: *pubkey,
@@ -65,6 +68,9 @@ impl FromAccount for QuayVenue {
             mm_frozen: 1,
             mm_frozen_admin: 1,
             mm_halted_admin: 1,
+            // Price-probe sizes — read from the Strategy header.
+            price_probe_base,
+            price_probe_quote,
             current_slot: 0,
             current_unix_sec: 0,
         })
@@ -116,6 +122,9 @@ impl QuayVenue {
         self.strategy_frozen = strategy.frozen;
         self.strategy_frozen_admin = strategy.frozen_admin;
         self.routing_flags = strategy.routing_flags;
+        // Re-read so a later `set_price_probe` is picked up next refresh.
+        self.price_probe_base = strategy.price_probe_base;
+        self.price_probe_quote = strategy.price_probe_quote;
 
         // Slot 1 — MarketMaker (asset table + admin halts).
         let mm_account = accounts[1]

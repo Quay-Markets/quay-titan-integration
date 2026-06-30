@@ -205,6 +205,13 @@ pub struct QuayVenue {
     mm_frozen_admin: u8,
     mm_halted_admin: u8,
 
+    /// Per-side price-probe input size — the `amount_in == 0` spot-probe size
+    /// and the marginal-price finite-difference step (base when selling base,
+    /// quote when buying). MM-set at market creation, re-read each
+    /// `update_state`. Sourced from `StrategyHeader::price_probe_{base,quote}`.
+    price_probe_base: u64,
+    price_probe_quote: u64,
+
     /// Wall clock the venue threads into `simulate_swap_in`. Production source
     /// is the `Clock` sysvar, fetched alongside the strategy / mm / vault
     /// blobs in `update_state` (see [`SYSVAR_CLOCK_ID`]). Callers running
