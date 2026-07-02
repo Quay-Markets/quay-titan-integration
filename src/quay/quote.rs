@@ -9,10 +9,11 @@ use std::cmp::max;
 
 use quay_sdk::consts::{MAX_USERSPACE_LEN, ROUTE_TITAN, SIDE_BUY_BASE, SIDE_SELL_BASE};
 use quay_sdk::simulate::{simulate_swap_in, SwapSimulationInputs};
+use quay_sdk::TxContext;
 
 use crate::trading_venue::{error::TradingVenueError, QuoteRequest, QuoteResult, SwapType};
 
-use super::QuayVenue;
+use super::{QuayVenue, TITAN_ROUTER_ID};
 
 impl QuayVenue {
     /// Price an `ExactIn` swap. Backs `TradingVenue::quote`; see that trait
@@ -62,6 +63,14 @@ impl QuayVenue {
             .map(|t| t.decimals as u8)
             .ok_or_else(|| TradingVenueError::MissingState("quote TokenInfo".into()))?;
 
+        // Simulate calling by Titan Router
+        let tx = TxContext {
+            ix_depth: 2,
+            tx_flags: 0,
+            entrypoint_program: TITAN_ROUTER_ID.to_bytes(),
+            signers: &[],
+        };
+
         // The VM prices into a stack scratch buffer, so the quote path does
         // no heap allocation. `MAX_USERSPACE_LEN` is the program's hard
         // userspace cap, so the buffer fits any strategy.
@@ -86,6 +95,7 @@ impl QuayVenue {
                     min_amount_out: 0,
                     base_decimals,
                     quote_decimals,
+                    tx,
                 },
                 &mut scratch,
             )
