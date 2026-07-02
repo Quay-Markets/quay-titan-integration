@@ -29,11 +29,13 @@ aggregates quote distribution across them.
   on-chain `swap`) on a fixed-size stack buffer — **no heap allocation**, every
   curve, stateful or not.
 - `QuoteResult::price` is the marginal rate `d(output)/d(input)`. Because the DSL
-  curve is a black box, it's computed by finite difference with the step sized to
-  a fixed output target (`2^20` atoms) so integer-atom quantization stays well
-  under Titan's mean-value-theorem tolerance.
+  curve is a black box, it's computed by finite difference with an MM-set probe
+  step (`StrategyHeader::price_probe_*`) sized so integer-atom quantization stays
+  well under Titan's mean-value-theorem tolerance.
 - A strategy is surfaced only when it opts into Titan (`routing_flags &
-  ROUTE_TITAN`), its on-chain halt set is clear, and it has no transfer-fee mints.
+  ROUTE_TITAN`) and its on-chain halt set is clear. Transfer-fee mints never
+  appear: the Quay program rejects transfer-affecting Token-2022 extensions at
+  asset registration.
 
 ## On-chain CPI adapter
 

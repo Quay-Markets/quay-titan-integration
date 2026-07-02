@@ -95,12 +95,10 @@ fn initialized_true_when_state_loaded_and_halts_clear() {
     assert!(all_active_venue().initialized());
 }
 
-/// One row of the halt-gate property table — see Jupiter sibling.
 type HaltCase = (&'static str, fn(&mut QuayVenue));
 
-/// Property: setting any one halt / freeze byte to non-zero must flip
-/// `initialized()` to false. Mirrors the Jupiter sibling test —
-/// adding a new flag forces a code change here.
+/// Setting any one halt / freeze byte to non-zero must flip `initialized()`
+/// to false; adding a new flag forces a code change here.
 #[test]
 fn initialized_false_when_any_single_halt_set() {
     let cases: &[HaltCase] = &[
