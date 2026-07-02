@@ -3057,9 +3057,9 @@ dependencies = [
 
 [[package]]
 name = "quay-sdk"
-version = "0.0.4"
+version = "0.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c938d4ad87cbada35dc1f1890013d453553e67f95067017e9be83d85218f9ac4"
+checksum = "035a78d15c736af3828bc0785f3b6a1852c80c2d2f89740c7db7b722757af9df"
 dependencies = [
  "bytemuck",
  "quay-vm",
@@ -3092,9 +3092,9 @@ dependencies = [
 
 [[package]]
 name = "quay-vm"
-version = "0.0.4"
+version = "0.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "60eb175f7f7e6325b2ae30a2365ac6f56f9df51d8fdede8bd4ad5298d050e2bf"
+checksum = "21f413e3ecf33524a02928c6d47f0672dd8eae0438a7fb010e65ef17a629a0f5"
 
 [[package]]
 name = "quinn"

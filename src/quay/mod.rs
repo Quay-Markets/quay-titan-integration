@@ -42,6 +42,11 @@ pub use creation::parse_pool_creations;
 pub const QUAY_PROGRAM_ID: Pubkey =
     solana_pubkey::pubkey!("QUayE6nexQWYNZAEqfN8FxoNwQDSu3CAzT2qq9J1ArG");
 
+/// Titan's mainnet router program id — the top-level program a routed swap
+/// executes under. Needed for accurate quoting.
+pub const TITAN_ROUTER_ID: Pubkey =
+    solana_pubkey::pubkey!("T1TANpTeScyeqVzzgNViGDNrkQ6qHz9KrSBS4aNXvGT");
+
 /// Solana's `Clock` sysvar. Fetched in `update_state` so curves using
 /// `LoadNowSlot` / `LoadNowUnixSec` see the same clock a real swap would.
 /// It is a well-known account, so Titan's cache dedups it across venues.

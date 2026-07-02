@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-quay-sdk = "0.0.4" # price_probe release — publish from monorepo feat/price-probe; match to actual published version
+quay-sdk = "0.0.5" # adds SwapSimulationInputs::tx
 async-trait = "0.1.80"
 thiserror = "1.0.61"
 log = "0.4.28"
