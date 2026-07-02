@@ -43,9 +43,7 @@ pub const QUAY_PROGRAM_ID: Pubkey =
     solana_pubkey::pubkey!("QUayE6nexQWYNZAEqfN8FxoNwQDSu3CAzT2qq9J1ArG");
 
 /// Titan's mainnet router program id — the top-level program a routed swap
-/// executes under. `quote()` simulates with this entrypoint at CPI depth 2
-/// so context-gated curves (`EntrypointIs` / `LoadIxDepth`) price the branch
-/// a Titan route actually takes.
+/// executes under. Needed for accurate quoting.
 pub const TITAN_ROUTER_ID: Pubkey =
     solana_pubkey::pubkey!("T1TANpTeScyeqVzzgNViGDNrkQ6qHz9KrSBS4aNXvGT");
 
