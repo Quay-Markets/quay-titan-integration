@@ -99,6 +99,17 @@ impl QuayVenue {
 
     /// Re-fetch the full account set and refresh cached blobs, halt/freeze
     /// bytes, token metadata, and clock. Backs `TradingVenue::update_state`.
+    ///
+    /// The refresh is **atomic over `self`**: every slot decodes into locals
+    /// and the venue is only written once all nine have resolved. A failure
+    /// part-way through must leave the previous snapshot — including the
+    /// construction-time warmup halts — untouched. Writing field-by-field
+    /// here would let a failed first update publish real (clear) halt bytes
+    /// while `tokens` / the clock were still defaults, flipping
+    /// `initialized()` true against half-decoded state; a failed later
+    /// update would leave a torn cross-slot mixture. The regression tests
+    /// (`any_failed_first_update_leaves_warmup_lock_intact`,
+    /// `failed_refresh_keeps_previous_snapshot`) assert both.
     pub(super) async fn refresh_state(
         &mut self,
         cache: &dyn AccountsCache,
@@ -115,46 +126,30 @@ impl QuayVenue {
         let strategy_account = accounts[0]
             .as_ref()
             .ok_or_else(|| TradingVenueError::NoAccountFound(self.strategy_key.into()))?;
-        self.strategy_data = strategy_account.data.clone();
-        let strategy = StrategyHeader::try_from_account(&self.strategy_data).map_err(|e| {
+        let strategy = *StrategyHeader::try_from_account(&strategy_account.data).map_err(|e| {
             TradingVenueError::DeserializationFailed(format!("StrategyHeader: {e}").into())
         })?;
-        self.strategy_frozen = strategy.frozen;
-        self.strategy_frozen_admin = strategy.frozen_admin;
-        self.routing_flags = strategy.routing_flags;
-        // Re-read so a later `set_price_probe` is picked up next refresh.
-        self.price_probe_base = strategy.price_probe_base;
-        self.price_probe_quote = strategy.price_probe_quote;
 
         // Slot 1 — MarketMaker (asset table + admin halts).
         let mm_account = accounts[1]
             .as_ref()
             .ok_or_else(|| TradingVenueError::NoAccountFound(self.mm_key.into()))?;
-        self.mm_data = mm_account.data.clone();
-        let mm = MarketMakerHeader::try_from_account(&self.mm_data).map_err(|e| {
+        let mm = *MarketMakerHeader::try_from_account(&mm_account.data).map_err(|e| {
             TradingVenueError::DeserializationFailed(format!("MarketMakerHeader: {e}").into())
         })?;
-        self.mm_frozen = mm.frozen;
-        self.mm_frozen_admin = mm.frozen_admin;
-        self.mm_halted_admin = mm.halted_admin;
 
         // Slot 2 — Quotes.
         let quotes_account = accounts[2]
             .as_ref()
             .ok_or_else(|| TradingVenueError::NoAccountFound(self.quotes_key.into()))?;
-        self.quotes_data = quotes_account.data.clone();
 
-        // Slot 3 — GlobalConfig. Cache the two cfg halt bytes alongside the
-        // raw blob.
+        // Slot 3 — GlobalConfig.
         let cfg_account = accounts[3]
             .as_ref()
             .ok_or_else(|| TradingVenueError::NoAccountFound(self.global_config_key.into()))?;
-        self.global_config_data = cfg_account.data.clone();
-        let cfg = GlobalConfig::try_from_account(&self.global_config_data).map_err(|e| {
+        let cfg = *GlobalConfig::try_from_account(&cfg_account.data).map_err(|e| {
             TradingVenueError::DeserializationFailed(format!("GlobalConfig: {e}").into())
         })?;
-        self.cfg_swap_halted = cfg.swap_halted;
-        self.cfg_protocol_halted = cfg.protocol_halted;
 
         // Slots 4 + 5 — base and quote mints. `TokenInfo::new` handles both
         // SPL Token and Token-2022 layouts (Token-2022 is a strict superset,
@@ -170,7 +165,6 @@ impl QuayVenue {
             .ok_or_else(|| TradingVenueError::NoAccountFound(self.quote_mint.into()))?;
         let base_info = TokenInfo::new(&self.base_mint, base_mint_account, 0)?;
         let quote_info = TokenInfo::new(&self.quote_mint, quote_mint_account, 0)?;
-        self.tokens = vec![base_info, quote_info];
 
         // Slots 6 + 7 — base and quote vaults. The VM no longer prices off
         // vault balances, so we don't cache their data; we only verify the
@@ -194,6 +188,24 @@ impl QuayVenue {
         let (slot, unix_sec) = decode_clock(&clock_account.data).ok_or_else(|| {
             TradingVenueError::DeserializationFailed("Clock sysvar too short".into())
         })?;
+
+        // Every slot resolved — commit the new snapshot.
+        self.strategy_data = strategy_account.data.clone();
+        self.strategy_frozen = strategy.frozen;
+        self.strategy_frozen_admin = strategy.frozen_admin;
+        self.routing_flags = strategy.routing_flags;
+        // Re-read so a later `set_price_probe` is picked up next refresh.
+        self.price_probe_base = strategy.price_probe_base;
+        self.price_probe_quote = strategy.price_probe_quote;
+        self.mm_data = mm_account.data.clone();
+        self.mm_frozen = mm.frozen;
+        self.mm_frozen_admin = mm.frozen_admin;
+        self.mm_halted_admin = mm.halted_admin;
+        self.quotes_data = quotes_account.data.clone();
+        self.global_config_data = cfg_account.data.clone();
+        self.cfg_swap_halted = cfg.swap_halted;
+        self.cfg_protocol_halted = cfg.protocol_halted;
+        self.tokens = vec![base_info, quote_info];
         self.current_slot = slot;
         self.current_unix_sec = unix_sec;
 
