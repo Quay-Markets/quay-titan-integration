@@ -105,6 +105,14 @@ pub struct QuayVenue {
     vault_base_key: Pubkey,
     vault_quote_key: Pubkey,
 
+    /// The strategy's bound external accounts (`ext_account_keys`, binding
+    /// order) and their latest data. Empty for unbound strategies. Keys are
+    /// re-derived on every `update_state`; a rebind or a missing account
+    /// leaves `ext_data` empty for the cycle, which keeps `initialized()`
+    /// false — fail closed, never stale-priced.
+    ext_keys: Vec<Pubkey>,
+    ext_data: Vec<Vec<u8>>,
+
     /// `[base, quote]` token metadata. Populated by `update_state`; empty
     /// before the first call.
     tokens: Vec<TokenInfo>,
@@ -141,7 +149,8 @@ pub struct QuayVenue {
 impl QuayVenue {
     /// Whether `update_state` has populated the dependent account blobs.
     fn has_all_state(&self) -> bool {
-        !self.mm_data.is_empty()
+        self.ext_data.len() == self.ext_keys.len()
+            && !self.mm_data.is_empty()
             && !self.quotes_data.is_empty()
             && !self.global_config_data.is_empty()
     }

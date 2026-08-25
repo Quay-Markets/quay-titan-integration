@@ -79,6 +79,13 @@ impl QuayVenue {
             0,
             side,
         );
+        // Ext accounts are the LAST accounts of the instruction, after the
+        // token program(s), in binding order — the on-chain contract.
+        let mut ix = ix;
+        for key in &self.ext_keys {
+            ix.accounts
+                .push(solana_program::instruction::AccountMeta::new_readonly(*key, false));
+        }
         Ok(ix)
     }
 }
@@ -104,6 +111,7 @@ impl AddressLookupTableTrait for QuayVenue {
             self.quote_mint,
             ix::INSTRUCTIONS_SYSVAR_ID,
         ];
+        keys.extend(self.ext_keys.iter().copied());
         keys.extend(self.program_dependencies());
         Ok(keys)
     }
