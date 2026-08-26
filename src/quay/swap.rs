@@ -64,9 +64,9 @@ impl QuayVenue {
         // `min_amount_out` is 0: Titan enforces slippage at the route level,
         // and Quay's swap only checks it when set non-zero.
         //
-        // `swap_with_ext` appends the strategy's bound external accounts and
-        // the 18-byte wire form's `ext_start` byte naming where they begin;
-        // with an empty binding it emits the plain 17-byte `swap`.
+        // `swap_with_ext` appends the strategy's bound external accounts
+        // right after the token program(s) — the position the program
+        // derives on-chain; with an empty binding it emits a plain `swap`.
         Ok(ix::swap_with_ext(
             &self.program_id,
             &self.strategy_key,
