@@ -78,12 +78,13 @@ impl QuayVenue {
         // Fixed buffer: the binding is capped at 4 and quoting stays
         // allocation-free. `has_all_state` already required data coverage.
         let mut ext_buf = [ExtAccount { key: [0u8; 32], data: &[] }; 4];
-        let ext_n = self.ext_keys.len().min(self.ext_data.len()).min(4);
-        for i in 0..ext_n {
-            ext_buf[i] = ExtAccount {
-                key: self.ext_keys[i].to_bytes(),
-                data: &self.ext_data[i],
-            };
+        let mut ext_n = 0;
+        for (slot, (key, data)) in ext_buf
+            .iter_mut()
+            .zip(self.ext_keys.iter().zip(&self.ext_data))
+        {
+            *slot = ExtAccount { key: key.to_bytes(), data };
+            ext_n += 1;
         }
         // `simulate_out(x)` = output atoms for an `x`-atom swap, or `None`
         // when the curve refuses that size. `Option` rather than `Result` on
