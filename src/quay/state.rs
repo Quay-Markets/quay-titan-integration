@@ -29,6 +29,14 @@ impl FromAccount for QuayVenue {
         let (global_config_key, _) = pda::global_config_pda(&program_id);
         let (vault_base_key, _) = pda::vault_pda(&program_id, &mm_key, &base_mint);
         let (vault_quote_key, _) = pda::vault_pda(&program_id, &mm_key, &quote_mint);
+        let ext_keys: Vec<Pubkey> = strategy
+            .ext_account_keys(&account.data)
+            .map_err(|e| {
+                TradingVenueError::DeserializationFailed(format!("ext binding: {e}").into())
+            })?
+            .iter()
+            .map(|k| Pubkey::new_from_array(*k))
+            .collect();
 
         Ok(Self {
             program_id,
@@ -44,6 +52,10 @@ impl FromAccount for QuayVenue {
             quote_mint,
             vault_base_key,
             vault_quote_key,
+            ext_keys,
+            // Fetched on the first update; the venue quotes only once
+            // `ext_data` covers the binding.
+            ext_data: Vec::new(),
             tokens: Vec::new(),
             routing_flags: strategy.routing_flags,
             // Halt bytes start at 1 so `initialized()` stays false until the
@@ -78,7 +90,10 @@ impl QuayVenue {
             self.vault_base_key,
             self.vault_quote_key,
             SYSVAR_CLOCK_ID,
-        ])
+        ]
+        .into_iter()
+        .chain(self.ext_keys.iter().copied())
+        .collect())
     }
 
     /// Re-fetch the full account set and refresh cached blobs, halt/freeze
@@ -160,8 +175,39 @@ impl QuayVenue {
             TradingVenueError::DeserializationFailed("Clock sysvar too short".into())
         })?;
 
+        // Slots 9.. — the bound external accounts, fetched under the
+        // PREVIOUS binding. If the fresh strategy data rebound the keys, or
+        // any account is missing, publish an empty `ext_data` — the venue
+        // goes dark for one cycle instead of quoting off mis-paired data.
+        let fresh_ext_keys: Vec<Pubkey> = strategy
+            .ext_account_keys(&strategy_account.data)
+            .map_err(|e| {
+                TradingVenueError::DeserializationFailed(format!("ext binding: {e}").into())
+            })?
+            .iter()
+            .map(|k| Pubkey::new_from_array(*k))
+            .collect();
+        let mut ext_data = Vec::with_capacity(fresh_ext_keys.len());
+        if fresh_ext_keys == self.ext_keys {
+            for (i, key) in fresh_ext_keys.iter().enumerate() {
+                match accounts.get(9 + i).and_then(|a| a.as_ref()) {
+                    Some(acc) => ext_data.push(acc.data.clone()),
+                    None => {
+                        let _ = key;
+                        ext_data.clear();
+                        break;
+                    }
+                }
+            }
+            if ext_data.len() != fresh_ext_keys.len() {
+                ext_data.clear();
+            }
+        }
+
         // Every slot resolved — commit the new snapshot.
         self.strategy_data = strategy_account.data.clone();
+        self.ext_keys = fresh_ext_keys;
+        self.ext_data = ext_data;
         self.strategy_frozen = strategy.frozen;
         self.strategy_frozen_admin = strategy.frozen_admin;
         self.routing_flags = strategy.routing_flags;

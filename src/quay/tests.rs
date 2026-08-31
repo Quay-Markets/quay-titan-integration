@@ -72,6 +72,8 @@ fn all_active_venue() -> QuayVenue {
         global_config_data: vec![0u8; 1],
         base_mint: Pubkey::new_unique(),
         quote_mint: Pubkey::new_unique(),
+        ext_keys: Vec::new(),
+        ext_data: Vec::new(),
         vault_base_key: Pubkey::new_unique(),
         vault_quote_key: Pubkey::new_unique(),
         tokens: Vec::new(),

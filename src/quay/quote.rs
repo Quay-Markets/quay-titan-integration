@@ -8,7 +8,7 @@
 use std::cmp::max;
 
 use quay_sdk::consts::{MAX_USERSPACE_LEN, ROUTE_TITAN, SIDE_BUY_BASE, SIDE_SELL_BASE};
-use quay_sdk::simulate::{simulate_swap_in, SwapSimulationInputs};
+use quay_sdk::simulate::{simulate_swap_in, ExtAccount, SwapSimulationInputs};
 use quay_sdk::TxContext;
 
 use crate::trading_venue::{error::TradingVenueError, QuoteRequest, QuoteResult, SwapType};
@@ -75,6 +75,17 @@ impl QuayVenue {
         // no heap allocation. `MAX_USERSPACE_LEN` is the program's hard
         // userspace cap, so the buffer fits any strategy.
         let mut scratch = [0u8; MAX_USERSPACE_LEN as usize];
+        // Fixed buffer: the binding is capped at 4 and quoting stays
+        // allocation-free. `has_all_state` already required data coverage.
+        let mut ext_buf = [ExtAccount { key: [0u8; 32], data: &[] }; 4];
+        let mut ext_n = 0;
+        for (slot, (key, data)) in ext_buf
+            .iter_mut()
+            .zip(self.ext_keys.iter().zip(&self.ext_data))
+        {
+            *slot = ExtAccount { key: key.to_bytes(), data };
+            ext_n += 1;
+        }
         // `simulate_out(x)` = output atoms for an `x`-atom swap, or `None`
         // when the curve refuses that size. `Option` rather than `Result` on
         // purpose: the boundary search probes refused sizes under
@@ -96,6 +107,8 @@ impl QuayVenue {
                     base_decimals,
                     quote_decimals,
                     tx,
+                    last_restart_slot: 0,
+                    ext_accounts: &ext_buf[..ext_n],
                 },
                 &mut scratch,
             )

@@ -63,7 +63,11 @@ impl QuayVenue {
 
         // `min_amount_out` is 0: Titan enforces slippage at the route level,
         // and Quay's swap only checks it when set non-zero.
-        let ix = ix::swap(
+        //
+        // `swap_with_ext` appends the strategy's bound external accounts
+        // right after the token program(s) — the position the program
+        // derives on-chain; with an empty binding it emits a plain `swap`.
+        Ok(ix::swap_with_ext(
             &self.program_id,
             &self.strategy_key,
             &self.mm_key,
@@ -78,8 +82,8 @@ impl QuayVenue {
             request.amount,
             0,
             side,
-        );
-        Ok(ix)
+            &self.ext_keys,
+        ))
     }
 }
 
@@ -104,6 +108,7 @@ impl AddressLookupTableTrait for QuayVenue {
             self.quote_mint,
             ix::INSTRUCTIONS_SYSVAR_ID,
         ];
+        keys.extend(self.ext_keys.iter().copied());
         keys.extend(self.program_dependencies());
         Ok(keys)
     }

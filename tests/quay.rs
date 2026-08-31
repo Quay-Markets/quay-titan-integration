@@ -24,7 +24,7 @@ static A: assert_no_alloc::AllocDisabler = assert_no_alloc::AllocDisabler;
 /// others with `getProgramAccounts(QUAY_PROGRAM_ID)` filtered on the Strategy
 /// discriminator (`0x03` at offset 0) — see `tests/quay_creation.rs`.
 fn pool() -> Pubkey {
-    pubkey!("5G1MkfhvpMxbw8PjnnnPNaZAFWYTGEZGLeWL3d7uF1e6")
+    pubkey!("46YbjFaL98S278fQT5i3WUFKCPYsCWkkqif5jtHPWXz4")
 }
 
 /// The Quay program. SPL Token, Token-2022, and the System program are LiteSVM
