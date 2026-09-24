@@ -1,0 +1,13 @@
+name: Private publishing policy
+
+on:
+  pull_request:
+  merge_group:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  private-publishing:
+    uses: Quay-Markets/.github/.github/workflows/private-publishing.yml@13615b155c3cb54c8bf02548c0bcb0795b201cf7
